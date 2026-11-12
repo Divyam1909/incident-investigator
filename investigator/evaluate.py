@@ -13,7 +13,7 @@ from pathlib import Path
 
 from investigator.agent.llm import build_llm
 from investigator.bootstrap import open_db, scenario_incident_id
-from investigator.config import get_settings
+from investigator.config import Settings, get_settings
 from investigator.runner import create_investigation, run_investigation
 from investigator.scenarios import SCENARIOS, Scenario
 
@@ -58,8 +58,13 @@ def to_markdown(rows: list[EvalRow], provider: str, model: str) -> str:
     return "\n".join(lines)
 
 
-def main(provider: str | None, out_dir: Path, max_steps: int | None = None) -> list[EvalRow]:
-    settings = get_settings()
+def main(
+    provider: str | None,
+    out_dir: Path,
+    max_steps: int | None = None,
+    settings: Settings | None = None,
+) -> list[EvalRow]:
+    settings = settings or get_settings()
     factory = open_db(settings)
     llm, info = build_llm(settings, provider)
     rows: list[EvalRow] = []
