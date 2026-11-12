@@ -184,17 +184,23 @@ class Simulator:
         attrs = {"peer.service": "redis", "db.system": "redis", "server.address": "redis-cache"}
         if self.fault(tr.cursor) == "cache_red_herring":
             err = "ConnectionError: Error 111 connecting to redis-cache:6379. Connection refused."
-            sid = tr.span(service, f"redis GET {key}", "CLIENT", self.ms(1, 4), parent, attrs,
-                          error=err)
+            sid = tr.span(
+                service, f"redis GET {key}", "CLIENT", self.ms(1, 4), parent, attrs, error=err
+            )
             if self.rng.random() < 0.25:
-                tr.log(service, "WARN", "Cache unavailable (redis-cache:6379), serving from "
-                       "database", sid)
+                tr.log(
+                    service,
+                    "WARN",
+                    "Cache unavailable (redis-cache:6379), serving from database",
+                    sid,
+                )
             return False
         tr.span(service, f"redis GET {key}", "CLIENT", self.ms(0.4, 3), parent, attrs)
         return self.rng.random() < 0.9
 
-    def postgres(self, tr: Trace, service: str, parent: str, stmt: str,
-                 lo: float = 3, hi: float = 12) -> str | None:
+    def postgres(
+        self, tr: Trace, service: str, parent: str, stmt: str, lo: float = 3, hi: float = 12
+    ) -> str | None:
         """Runs one query. Returns an error string if the call failed."""
         attrs: dict[str, Any] = {
             "peer.service": "postgres",
@@ -208,17 +214,30 @@ class Simulator:
             wait_ms = min(self.rng.lognormvariate(6.2, 0.6), 3000.0)  # median ~500ms
             if wait_ms >= 3000.0 or self.rng.random() < 0.025:
                 wait_ms = 3000.0
-                err = ("TimeoutError: QueuePool limit of size 20 overflow 10 reached, "
-                       "connection timed out, timeout 3.00")
+                err = (
+                    "TimeoutError: QueuePool limit of size 20 overflow 10 reached, "
+                    "connection timed out, timeout 3.00"
+                )
                 attrs["db.client.connection.wait_ms"] = wait_ms
-                sid = tr.span(service, stmt.split(" ")[0] + " " + stmt.split(" ")[-1], "CLIENT",
-                              wait_ms, parent, attrs, error=err)
+                sid = tr.span(
+                    service,
+                    stmt.split(" ")[0] + " " + stmt.split(" ")[-1],
+                    "CLIENT",
+                    wait_ms,
+                    parent,
+                    attrs,
+                    error=err,
+                )
                 tr.log(service, "ERROR", err, sid)
                 return err
             if wait_ms > 1000 and self.rng.random() < 0.3:
                 in_use_waiting = self.rng.randint(25, 60)
-                tr.log(service, "WARN", f"Slow connection checkout from pool: waited "
-                       f"{wait_ms:.0f}ms (in_use=30/30, waiting={in_use_waiting})")
+                tr.log(
+                    service,
+                    "WARN",
+                    f"Slow connection checkout from pool: waited "
+                    f"{wait_ms:.0f}ms (in_use=30/30, waiting={in_use_waiting})",
+                )
         attrs["db.client.connection.wait_ms"] = round(wait_ms, 1)
         name = stmt.split(" ")[0] + " " + stmt.split(" ")[-1]
         tr.span(service, name, "CLIENT", wait_ms + query_ms, parent, attrs)
@@ -237,8 +256,10 @@ class Simulator:
         error = self.postgres(tr, svc, root, "SELECT * FROM cart_items")
         version = self.version(svc, t)
         if not error and version == "2.14.0" and self.rng.random() < 0.3:
-            error = ("TypeError: unsupported operand type(s) for -: 'NoneType' and 'Decimal' "
-                     "(promotions.py:88 apply_promo_discount)")
+            error = (
+                "TypeError: unsupported operand type(s) for -: 'NoneType' and 'Decimal' "
+                "(promotions.py:88 apply_promo_discount)"
+            )
             tr.cursor += timedelta(milliseconds=self.ms(3, 9))
             tr.log(svc, "ERROR", f"Unhandled exception in POST /checkout: {error}", root)
         if not error:
@@ -250,8 +271,17 @@ class Simulator:
             status = 503 if "QueuePool" in error else 500
         tr.cursor += timedelta(milliseconds=self.ms(2, 8))
         duration = (tr.cursor - t) / timedelta(milliseconds=1)
-        tr.span(svc, route, "SERVER", duration, None, self.server_attrs(svc, route, status, t),
-                start=t, error=error, span_id=root)
+        tr.span(
+            svc,
+            route,
+            "SERVER",
+            duration,
+            None,
+            self.server_attrs(svc, route, status, t),
+            start=t,
+            error=error,
+            span_id=root,
+        )
         self.access_log(tr, svc, route, status, duration)
 
     def charge(self, tr: Trace, parent: str) -> str | None:
@@ -263,32 +293,55 @@ class Simulator:
         server_start = tr.cursor + timedelta(milliseconds=self.ms(0.5, 2))
         tr.cursor = server_start + timedelta(milliseconds=self.ms(1, 4))
         error = None
-        stripe_attrs = {"peer.service": "stripe", "server.address": "api.stripe.com",
-                        "http.request.method": "POST"}
+        stripe_attrs = {
+            "peer.service": "stripe",
+            "server.address": "api.stripe.com",
+            "http.request.method": "POST",
+        }
         if self.rng.random() < 0.002:  # rare, normal background failure
             error = "TimeoutError: api.stripe.com read timed out (10s)"
-            tr.span(svc, "POST /v1/payment_intents", "CLIENT", 10000, server, stripe_attrs,
-                    error=error)
+            tr.span(
+                svc, "POST /v1/payment_intents", "CLIENT", 10000, server, stripe_attrs, error=error
+            )
         else:
-            tr.span(svc, "POST /v1/payment_intents", "CLIENT", self.ms(45, 140), server,
-                    stripe_attrs)
+            tr.span(
+                svc, "POST /v1/payment_intents", "CLIENT", self.ms(45, 140), server, stripe_attrs
+            )
         tr.cursor += timedelta(milliseconds=self.ms(1, 3))
         if not error:
             self.postgres(tr, svc, server, "INSERT INTO charges", 2, 8)
         server_ms = (tr.cursor - server_start) / timedelta(milliseconds=1)
         status = 502 if error else 201
-        tr.span(svc, "POST /charges", "SERVER", server_ms, client,
-                self.server_attrs(svc, "POST /charges", status, server_start),
-                start=server_start, error=error, span_id=server)
+        tr.span(
+            svc,
+            "POST /charges",
+            "SERVER",
+            server_ms,
+            client,
+            self.server_attrs(svc, "POST /charges", status, server_start),
+            start=server_start,
+            error=error,
+            span_id=server,
+        )
         if error:
             tr.log(svc, "ERROR", f"Charge failed: {error}", server)
         tr.cursor += timedelta(milliseconds=self.ms(0.5, 2))
         client_ms = (tr.cursor - client_start) / timedelta(milliseconds=1)
-        tr.span("checkout-api", "POST /charges", "CLIENT", client_ms, parent,
-                {"peer.service": "payments-service", "http.request.method": "POST",
-                 "http.response.status_code": status},
-                start=client_start, error=f"HTTPError: {status} from payments-service"
-                if error else None, span_id=client)
+        tr.span(
+            "checkout-api",
+            "POST /charges",
+            "CLIENT",
+            client_ms,
+            parent,
+            {
+                "peer.service": "payments-service",
+                "http.request.method": "POST",
+                "http.response.status_code": status,
+            },
+            start=client_start,
+            error=f"HTTPError: {status} from payments-service" if error else None,
+            span_id=client,
+        )
         return f"PaymentError: payments-service returned {status}" if error else None
 
     def cart(self, t: datetime) -> None:
@@ -302,8 +355,17 @@ class Simulator:
         tr.cursor += timedelta(milliseconds=self.ms(1, 5))
         status = 503 if error else 200
         duration = (tr.cursor - t) / timedelta(milliseconds=1)
-        tr.span(svc, route, "SERVER", duration, None, self.server_attrs(svc, route, status, t),
-                start=t, error=error, span_id=root)
+        tr.span(
+            svc,
+            route,
+            "SERVER",
+            duration,
+            None,
+            self.server_attrs(svc, route, status, t),
+            start=t,
+            error=error,
+            span_id=root,
+        )
         self.access_log(tr, svc, route, status, duration)
 
     def products(self, t: datetime, route: str) -> None:
@@ -313,32 +375,61 @@ class Simulator:
         tr.cursor += timedelta(milliseconds=self.ms(2, 6))
         error = None
         outage = self.fault(t) == "cache_red_herring"
-        if not self.redis_get(tr, svc, root, "products:{page}" if route == "GET /products"
-                              else "product:{id}"):
+        if not self.redis_get(
+            tr, svc, root, "products:{page}" if route == "GET /products" else "product:{id}"
+        ):
             # Cache miss. During the outage every request misses at once, so the
             # database is slower too: a thundering herd, not a database fault.
             lo, hi = (350, 1800) if outage else (20, 70)
-            stmt = "SELECT * FROM products" if route == "GET /products" else \
-                "SELECT * FROM product_details"
-            attrs = {"peer.service": "postgres", "db.system": "postgresql",
-                     "db.statement": stmt, "server.address": "catalog-db",
-                     "db.client.connection.wait_ms": round(self.ms(0, 2), 1)}
+            stmt = (
+                "SELECT * FROM products"
+                if route == "GET /products"
+                else "SELECT * FROM product_details"
+            )
+            attrs = {
+                "peer.service": "postgres",
+                "db.system": "postgresql",
+                "db.statement": stmt,
+                "server.address": "catalog-db",
+                "db.client.connection.wait_ms": round(self.ms(0, 2), 1),
+            }
             q_ms = self.ms(lo, hi)
             if outage and q_ms > 1500:
                 error = "QueryCanceled: canceling statement due to statement timeout"
-                tr.span(svc, stmt.split(" ")[0] + " " + stmt.split(" ")[-1], "CLIENT", 1500,
-                        root, attrs, error=error)
+                tr.span(
+                    svc,
+                    stmt.split(" ")[0] + " " + stmt.split(" ")[-1],
+                    "CLIENT",
+                    1500,
+                    root,
+                    attrs,
+                    error=error,
+                )
             else:
-                tr.span(svc, stmt.split(" ")[0] + " " + stmt.split(" ")[-1], "CLIENT", q_ms,
-                        root, attrs)
+                tr.span(
+                    svc, stmt.split(" ")[0] + " " + stmt.split(" ")[-1], "CLIENT", q_ms, root, attrs
+                )
         tr.cursor += timedelta(milliseconds=self.ms(15, 70))  # ranking + serialisation
         status = 503 if error else 200
         duration = (tr.cursor - t) / timedelta(milliseconds=1)
-        tr.span(svc, route, "SERVER", duration, None, self.server_attrs(svc, route, status, t),
-                start=t, error=error, span_id=root)
+        tr.span(
+            svc,
+            route,
+            "SERVER",
+            duration,
+            None,
+            self.server_attrs(svc, route, status, t),
+            start=t,
+            error=error,
+            span_id=root,
+        )
         if self.version(svc, t) == "3.2.0" and self.rng.random() < 0.05:
-            tr.log(svc, "WARN", "PydanticDeprecatedSince210: `min_items` is deprecated, use "
-                   "`min_length` (models/listing.py:41)")
+            tr.log(
+                svc,
+                "WARN",
+                "PydanticDeprecatedSince210: `min_items` is deprecated, use "
+                "`min_length` (models/listing.py:41)",
+            )
         self.access_log(tr, svc, route, status, duration)
 
     def chat(self, t: datetime) -> None:
@@ -360,19 +451,35 @@ class Simulator:
         if degraded and self.rng.random() < 0.4:
             error = "TimeoutError: Deadline exceeded after 30.0s waiting for gemini response"
             sid = tr.span(svc, f"chat {LLM_MODEL}", "CLIENT", 30000, root, attrs, error=error)
-            tr.log(svc, "ERROR", f"LLM call timed out after 30000ms (provider=gemini, "
-                   f"model={LLM_MODEL})", sid)
+            tr.log(
+                svc,
+                "ERROR",
+                f"LLM call timed out after 30000ms (provider=gemini, model={LLM_MODEL})",
+                sid,
+            )
         else:
             lo, hi = (2500, 9000) if degraded else (700, 3200)
-            attrs |= {"gen_ai.response.model": LLM_MODEL, "gen_ai.usage.input_tokens": in_tok,
-                      "gen_ai.usage.output_tokens": out_tok}
+            attrs |= {
+                "gen_ai.response.model": LLM_MODEL,
+                "gen_ai.usage.input_tokens": in_tok,
+                "gen_ai.usage.output_tokens": out_tok,
+            }
             tr.span(svc, f"chat {LLM_MODEL}", "CLIENT", self.ms(lo, hi), root, attrs)
             self.postgres(tr, svc, root, "INSERT INTO messages", 2, 8)
         tr.cursor += timedelta(milliseconds=self.ms(2, 10))
         status = 504 if error else 200
         duration = (tr.cursor - t) / timedelta(milliseconds=1)
-        tr.span(svc, route, "SERVER", duration, None, self.server_attrs(svc, route, status, t),
-                start=t, error=error, span_id=root)
+        tr.span(
+            svc,
+            route,
+            "SERVER",
+            duration,
+            None,
+            self.server_attrs(svc, route, status, t),
+            start=t,
+            error=error,
+            span_id=root,
+        )
         self.access_log(tr, svc, route, status, duration)
 
     def access_log(self, tr: Trace, svc: str, route: str, status: int, ms: float) -> None:
@@ -389,8 +496,9 @@ class Simulator:
             ("checkout-api", "POST /checkout"): self.checkout,
             ("checkout-api", "GET /cart"): self.cart,
             ("catalog-service", "GET /products"): lambda ts: self.products(ts, "GET /products"),
-            ("catalog-service", "GET /products/{id}"):
-                lambda ts: self.products(ts, "GET /products/{id}"),
+            ("catalog-service", "GET /products/{id}"): lambda ts: self.products(
+                ts, "GET /products/{id}"
+            ),
             ("support-assistant", "POST /chat"): self.chat,
         }
         while t < s.detected_at:
@@ -412,21 +520,37 @@ class Simulator:
         t = s.traffic_start
         while t < s.detected_at:
             for svc in SERVICES:
-                self.log(svc, t + timedelta(seconds=self.rng.uniform(0, 60)), "INFO",
-                         "health check ok")
+                self.log(
+                    svc, t + timedelta(seconds=self.rng.uniform(0, 60)), "INFO", "health check ok"
+                )
             t += timedelta(minutes=5)
         for d in s.deploys:
-            self.log(d.service, d.at, "INFO", f"Deployment started: {d.previous_version} -> "
-                     f"{d.version} by {d.deployed_by}")
-            self.log(d.service, d.at + ROLLOUT, "INFO", f"Deployment finished: {d.version} "
-                     f"serving 100% of traffic")
+            self.log(
+                d.service,
+                d.at,
+                "INFO",
+                f"Deployment started: {d.previous_version} -> {d.version} by {d.deployed_by}",
+            )
+            self.log(
+                d.service,
+                d.at + ROLLOUT,
+                "INFO",
+                f"Deployment finished: {d.version} serving 100% of traffic",
+            )
         if s.key == "db_pool":
-            self.log("checkout-api", s.onset - timedelta(minutes=2), "INFO",
-                     "order-export: started full export of orders table (est. 18 min, "
-                     "parallelism=12)")
+            self.log(
+                "checkout-api",
+                s.onset - timedelta(minutes=2),
+                "INFO",
+                "order-export: started full export of orders table (est. 18 min, parallelism=12)",
+            )
         if s.key == "cache_red_herring":
-            self.log("catalog-service", s.onset, "ERROR", "redis-cache:6379 health probe "
-                     "failed: Connection refused")
+            self.log(
+                "catalog-service",
+                s.onset,
+                "ERROR",
+                "redis-cache:6379 health probe failed: Connection refused",
+            )
 
 
 # --------------------------------------------------------------------------
@@ -450,8 +574,16 @@ def is_seeded(factory: sessionmaker[Session]) -> bool:
 
 def reset(factory: sessionmaker[Session]) -> None:
     with session_scope(factory) as session:
-        for model in (InvestigationStep, Investigation, IncidentLabel, Incident, LogRecord,
-                      Span, Deploy, Service):
+        for model in (
+            InvestigationStep,
+            Investigation,
+            IncidentLabel,
+            Incident,
+            LogRecord,
+            Span,
+            Deploy,
+            Service,
+        ):
             session.execute(delete(model))
 
 
@@ -469,24 +601,35 @@ def seed(factory: sessionmaker[Session], scale: float = 1.0, rng_seed: int = 42)
             session.execute(insert(Span), batch.spans)
             session.execute(insert(LogRecord), batch.logs)
             for d in scenario.deploys:
-                session.add(Deploy(
-                    service_id=service_ids[d.service], version=d.version,
-                    previous_version=d.previous_version, deployed_by=d.deployed_by,
-                    change_summary=d.change_summary, deployed_at=d.at,
-                    commit_sha=f"{random.Random(d.version).getrandbits(40):010x}",
-                ))
+                session.add(
+                    Deploy(
+                        service_id=service_ids[d.service],
+                        version=d.version,
+                        previous_version=d.previous_version,
+                        deployed_by=d.deployed_by,
+                        change_summary=d.change_summary,
+                        deployed_at=d.at,
+                        commit_sha=f"{random.Random(d.version).getrandbits(40):010x}",
+                    )
+                )
             incident = Incident(
-                title=scenario.title, alert_text=scenario.alert_text,
-                service_id=service_ids[scenario.service], endpoint=scenario.endpoint,
-                severity=scenario.severity, detected_at=scenario.detected_at,
+                title=scenario.title,
+                alert_text=scenario.alert_text,
+                service_id=service_ids[scenario.service],
+                endpoint=scenario.endpoint,
+                severity=scenario.severity,
+                detected_at=scenario.detected_at,
             )
             session.add(incident)
             session.flush()
-            session.add(IncidentLabel(
-                incident_id=incident.id, scenario=scenario.key,
-                root_cause_category=scenario.root_cause_category,
-                root_cause_component=scenario.root_cause_component,
-                explanation=scenario.explanation,
-            ))
+            session.add(
+                IncidentLabel(
+                    incident_id=incident.id,
+                    scenario=scenario.key,
+                    root_cause_category=scenario.root_cause_category,
+                    root_cause_component=scenario.root_cause_component,
+                    explanation=scenario.explanation,
+                )
+            )
             incident_ids[scenario.key] = incident.id
     return incident_ids

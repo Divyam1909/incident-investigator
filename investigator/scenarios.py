@@ -97,11 +97,17 @@ SCENARIOS: dict[str, Scenario] = {
             ),
             deploys=(
                 DeploySpec(
-                    "payments-service", "1.8.1", "1.8.0", _at(_D1, 12, 40),
+                    "payments-service",
+                    "1.8.1",
+                    "1.8.0",
+                    _at(_D1, 12, 40),
                     "Add idempotency-key logging",
                 ),
                 DeploySpec(
-                    "checkout-api", "2.14.0", "2.13.4", _at(_D1, 14, 3),
+                    "checkout-api",
+                    "2.14.0",
+                    "2.13.4",
+                    _at(_D1, 14, 3),
                     "Refactor promo-code discount calculation (PR #4821)",
                     deployed_by="a.sharma",
                 ),
@@ -125,7 +131,10 @@ SCENARIOS: dict[str, Scenario] = {
             ),
             deploys=(
                 DeploySpec(
-                    "payments-service", "1.8.2", "1.8.1", _at(_D2, 13, 50),
+                    "payments-service",
+                    "1.8.2",
+                    "1.8.1",
+                    _at(_D2, 13, 50),
                     "Bump stripe SDK to 11.2",
                 ),
             ),
@@ -150,7 +159,10 @@ SCENARIOS: dict[str, Scenario] = {
             ),
             deploys=(
                 DeploySpec(
-                    "catalog-service", "3.1.9", "3.1.8", _at(_D3, 13, 20),
+                    "catalog-service",
+                    "3.1.9",
+                    "3.1.8",
+                    _at(_D3, 13, 20),
                     "Fix pagination off-by-one",
                 ),
             ),
@@ -158,7 +170,10 @@ SCENARIOS: dict[str, Scenario] = {
         Scenario(
             key="cache_red_herring",
             title="Latency spike on GET /products",
-            alert_text="p95 latency on GET /products (catalog-service) rose from ~90ms to over 1s at 14:05 UTC.",
+            alert_text=(
+                "p95 latency on GET /products (catalog-service) rose from ~70ms to over 1s at "
+                "14:05 UTC."
+            ),
             service="catalog-service",
             endpoint="GET /products",
             severity="sev2",
@@ -174,7 +189,10 @@ SCENARIOS: dict[str, Scenario] = {
             ),
             deploys=(
                 DeploySpec(
-                    "catalog-service", "3.2.0", "3.1.9", _at(_D4, 14, 1),
+                    "catalog-service",
+                    "3.2.0",
+                    "3.1.9",
+                    _at(_D4, 14, 1),
                     "New sort options for product listing; upgrade pydantic 2.9 -> 2.10",
                     deployed_by="r.iyer",
                 ),
