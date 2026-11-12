@@ -156,8 +156,11 @@ Interactive docs are at `http://localhost:8000/docs`.
 
 Postgres works by setting `DATABASE_URL=postgresql+psycopg://user:pass@host/db`
 after `pip install -e ".[postgres]"`. Migrations are Alembic (`alembic upgrade head`,
-or automatically on first run). The tests run on SQLite only; the Postgres path
-(JSONB, partial indexes) has not been run against a live server yet.
+or automatically on first run). The test suite runs on SQLite. The Postgres path
+was checked by hand against `postgres:16` in Docker: migrations match the models,
+`attributes` is `jsonb`, an investigation completes, and `EXPLAIN` shows the error
+query using the partial index. Seeding Postgres is slow (several minutes over
+Docker on Windows), because it uses ORM bulk inserts rather than `COPY`.
 
 ## Example investigation
 
@@ -355,6 +358,7 @@ Adding OpenAI or Anthropic is one branch in `build_llm`.
 - **Percentiles are computed in Python** (SQLite has no `percentile_cont`).
   Fine at this volume; on Postgres they should be pushed into SQL, and `spans`
   and `logs` partitioned by day.
+- **Seeding Postgres is slow.** Switching the seed to `COPY` would make it seconds.
 - **`search_logs` is substring search.** On Postgres, add a `pg_trgm` index.
 - **Background tasks run in the API process.** For production, move runs to a
   worker queue (the step table already decouples progress from the process).
