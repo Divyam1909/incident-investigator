@@ -7,7 +7,8 @@ returned:
 1. Every claim cites at least one evidence id, and every cited id exists.
 2. Every number, version and clock time in a claim appears in the evidence it
    cites (with unit conversion and rounding tolerance: "2.4s" matches 2412.3 ms,
-   "28%" matches 28.43, "x15" matches 2684/171 as a ratio).
+   "28%" matches 28.43, "x15" matches 2684/171 as a ratio). The tolerance is
+   relative, so a small invented number cannot hide next to a different one.
 3. The root-cause component is named in the evidence cited for the root cause.
 
 Then confidence is calibrated: the model's own confidence can only go down.
@@ -77,31 +78,35 @@ class EvidenceFacts:
         self.numbers = numbers
         self.minutes = minutes
 
-    def has_number(self, value: float, unit: str | None) -> bool:
-        candidates = [value]
-        if unit in ("s", "sec", "seconds"):
-            candidates.append(value * 1000)
-        elif unit == "ms":
-            candidates.append(value / 1000)
-        elif unit == "%":
-            candidates.append(value / 100)
-        if any(_close(c, n) for c in candidates for n in self.numbers):
+    def has_number(self, value: float, unit: str | None, step: float = 1.0) -> bool:
+        """``step`` is the claim's rounding granularity (0.1 for "2.4"), in the claim's unit.
+
+        Tools report durations in ms and rates as percentages, so the only
+        conversion needed is seconds -> ms.
+        """
+        scale = 1000.0 if unit in ("s", "sec", "seconds") else 1.0
+        if any(_close(value * scale, n, step * scale) for n in self.numbers):
             return True
         if unit in ("x", "×", "times"):
-            return self.has_ratio(value)
+            return self.has_ratio(value, step)
         return False
 
-    def has_ratio(self, value: float) -> bool:
+    def has_ratio(self, value: float, step: float = 1.0) -> bool:
         nums = [n for n in self.numbers if n > 0]
-        return any(_close(value, a / b) for a in nums for b in nums if a > b)
+        return any(_close(value, a / b, step) for a in nums for b in nums if a > b)
 
     def has_time(self, minute_of_day: int) -> bool:
         return any(abs(minute_of_day - m) <= 2 for m in self.minutes)
 
 
-def _close(a: float, b: float) -> bool:
-    # Allows rounding: 2.4 vs 2.41, 30 vs 28.43, 180 vs 171.5.
-    return abs(a - b) <= max(0.5, 0.06 * abs(b))
+def _close(claimed: float, actual: float, step: float) -> bool:
+    """Equal up to the claim's own rounding, or within 6% ("2.4s" ~ 2412.3ms, "30%" ~ 28.43)."""
+    return abs(claimed - actual) <= max(step / 2, 0.06 * abs(actual))
+
+
+def _step(number: str) -> float:
+    """Rounding granularity of a written number: "2.4" -> 0.1, "30" -> 1."""
+    return 10.0 ** -len(number.split(".")[1]) if "." in number else 1.0
 
 
 def check_text(text: str, facts: EvidenceFacts) -> list[str]:
@@ -116,14 +121,14 @@ def check_text(text: str, facts: EvidenceFacts) -> list[str]:
             problems.append(f"time {m[0]} not in cited evidence")
     rest = _TIME.sub(" ", _DATE.sub(" ", without_versions))
     for m in _RATIO_PREFIX.finditer(rest):
-        if not facts.has_number(float(m[1]), "x"):
+        if not facts.has_number(float(m[1]), "x", _step(m[1])):
             problems.append(f"ratio x{m[1]} not in cited evidence")
     rest = _RATIO_PREFIX.sub(" ", rest)
     for m in _NUMBER.finditer(rest):
         value, unit = float(m[1].replace(",", "")), (m[2] or None)
         if unit is None and value < 10:
             continue  # small counts ("3 services", "2 minutes") are not checked
-        if not facts.has_number(value, unit):
+        if not facts.has_number(value, unit, _step(m[1].replace(",", ""))):
             problems.append(f"number {m[0].strip()} not in cited evidence")
     return problems
 
