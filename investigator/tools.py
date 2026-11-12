@@ -16,6 +16,7 @@ Design rules:
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter, defaultdict
 from collections.abc import Callable
@@ -51,8 +52,8 @@ def percentile(values: list[float], p: float) -> float | None:
     if not values:
         return None
     ordered = sorted(values)
-    rank = max(0, min(len(ordered) - 1, round(p / 100 * len(ordered) + 0.5) - 1))
-    return round(ordered[rank], 1)
+    rank = math.ceil(p / 100 * len(ordered))  # 1-based nearest rank
+    return round(ordered[max(0, min(len(ordered), rank) - 1)], 1)
 
 
 def _pct(part: int, whole: int) -> float:
