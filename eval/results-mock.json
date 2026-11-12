@@ -1,0 +1,62 @@
+[
+  {
+    "scenario": "bad_deploy",
+    "expected": "bad_deploy / checkout-api",
+    "predicted": "bad_deploy / checkout-api@2.14.0",
+    "correct": true,
+    "confidence": "high",
+    "tool_calls": 5,
+    "input_tokens": 7043,
+    "output_tokens": 695,
+    "latency_s": 0.21,
+    "cost_usd": 0.0,
+    "removed_claims": 0,
+    "investigation_id": 13,
+    "status": "completed"
+  },
+  {
+    "scenario": "db_pool",
+    "expected": "db_pool_exhaustion / postgres",
+    "predicted": "db_pool_exhaustion / postgres",
+    "correct": true,
+    "confidence": "high",
+    "tool_calls": 5,
+    "input_tokens": 7952,
+    "output_tokens": 695,
+    "latency_s": 0.24,
+    "cost_usd": 0.0,
+    "removed_claims": 0,
+    "investigation_id": 14,
+    "status": "completed"
+  },
+  {
+    "scenario": "llm_timeout",
+    "expected": "dependency_timeout / gemini",
+    "predicted": "dependency_timeout / gemini",
+    "correct": true,
+    "confidence": "high",
+    "tool_calls": 5,
+    "input_tokens": 6974,
+    "output_tokens": 704,
+    "latency_s": 0.11,
+    "cost_usd": 0.0,
+    "removed_claims": 0,
+    "investigation_id": 15,
+    "status": "completed"
+  },
+  {
+    "scenario": "cache_red_herring",
+    "expected": "cache_outage / redis",
+    "predicted": "cache_outage / redis",
+    "correct": true,
+    "confidence": "high",
+    "tool_calls": 5,
+    "input_tokens": 7230,
+    "output_tokens": 764,
+    "latency_s": 0.2,
+    "cost_usd": 0.0,
+    "removed_claims": 0,
+    "investigation_id": 16,
+    "status": "completed"
+  }
+]
