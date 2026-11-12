@@ -32,8 +32,8 @@ How to investigate:
 - You have a budget of {max_steps} tool calls. Be efficient: 4-8 calls is usually enough.
 
 When the evidence is sufficient, call submit_findings exactly once:
-- root_cause_component names the failing component (service@version, or a dependency
-  such as postgres, redis, stripe, gemini).
+- root_cause_component names the failing component: service@version for a bad deploy,
+  otherwise the dependency itself (postgres, redis, stripe, gemini), not the caller.
 - Every claim cites evidence ids, and every number in a claim is quoted exactly as the
   tool returned it (e.g. "p95 2684.3ms vs 171.2ms baseline"). Claims are checked
   automatically against the cited evidence; unsupported claims are removed.

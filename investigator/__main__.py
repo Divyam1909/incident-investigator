@@ -66,7 +66,9 @@ def cmd_run(args: argparse.Namespace) -> None:
 def cmd_eval(args: argparse.Namespace) -> None:
     from investigator.evaluate import main as eval_main
 
-    eval_main(provider=args.provider, out_dir=ROOT / "eval", max_steps=args.max_steps)
+    eval_main(
+        provider=args.provider, out_dir=ROOT / "eval", max_steps=args.max_steps, pause_s=args.pause
+    )
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
@@ -109,6 +111,12 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser("eval", help="run all scenarios and score root-cause accuracy")
     p.add_argument("--provider", choices=["mock", "gemini"], help="overrides LLM_PROVIDER")
     p.add_argument("--max-steps", type=int)
+    p.add_argument(
+        "--pause",
+        type=float,
+        default=0.0,
+        help="seconds to wait between scenarios (free-tier rate limits)",
+    )
     p.set_defaults(func=cmd_eval)
 
     p = sub.add_parser("serve", help="start the HTTP API")

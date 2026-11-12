@@ -179,3 +179,11 @@ def test_invalid_findings_cost_a_step(factory: sessionmaker[Session]) -> None:
     assert out["steps"] == 2
     assert out["budget_exhausted"] is True
     assert model.calls == 2
+
+
+def test_only_provider_overload_is_retried() -> None:
+    from investigator.agent.graph import is_transient
+
+    assert is_transient(RuntimeError("429 RESOURCE_EXHAUSTED quota"))
+    assert is_transient(RuntimeError("503 UNAVAILABLE high demand"))
+    assert not is_transient(ValueError("invalid argument"))

@@ -15,7 +15,8 @@ class Settings(BaseSettings):
 
     llm_provider: Literal["mock", "gemini"] = "mock"
     google_api_key: str = ""
-    gemini_model: str = "gemini-flash-latest"
+    # Google retires model ids often; override with GEMINI_MODEL.
+    gemini_model: str = "gemini-3.1-flash-lite"
     llm_temperature: float = 0.0
 
     # Hard ceiling on tool calls per investigation (the max-steps guard).

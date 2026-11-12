@@ -8,6 +8,7 @@ component matches one of the scenario's accepted aliases. Both are needed:
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -63,12 +64,15 @@ def main(
     out_dir: Path,
     max_steps: int | None = None,
     settings: Settings | None = None,
+    pause_s: float = 0.0,
 ) -> list[EvalRow]:
     settings = settings or get_settings()
     factory = open_db(settings)
     llm, info = build_llm(settings, provider)
     rows: list[EvalRow] = []
-    for key, s in SCENARIOS.items():
+    for i, (key, s) in enumerate(SCENARIOS.items()):
+        if i and pause_s:
+            time.sleep(pause_s)  # stay under free-tier requests-per-minute limits
         inv_id = create_investigation(
             factory, scenario_incident_id(factory, key), info, max_steps or settings.max_steps
         )

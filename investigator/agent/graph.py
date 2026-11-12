@@ -33,6 +33,7 @@ from langchain_core.tools import StructuredTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import RetryPolicy
 from pydantic import ValidationError
 
 from investigator.agent import prompts
@@ -43,6 +44,26 @@ from investigator.agent.verify import feedback_message, verify_findings
 from investigator.tools import Toolbox, summarize
 
 SUBMIT = "submit_findings"
+
+_TRANSIENT = ("RateLimit", "RESOURCE_EXHAUSTED", "429", "503", "UNAVAILABLE", "DEADLINE_EXCEEDED")
+
+
+def is_transient(exc: Exception) -> bool:
+    """Provider overload or rate limiting: worth retrying with backoff."""
+    text = f"{type(exc).__name__} {exc}"
+    return any(marker in text for marker in _TRANSIENT)
+
+
+# Applied to the LLM nodes only. They are safe to re-run because a node's
+# output is only applied to state when it returns. The tools node is not
+# retried: database errors are bugs, not load.
+LLM_RETRY = RetryPolicy(
+    initial_interval=5.0,
+    backoff_factor=2.0,
+    max_interval=60.0,
+    max_attempts=4,
+    retry_on=is_transient,
+)
 
 
 def _usage(message: Any) -> Usage:
@@ -259,9 +280,9 @@ def build_graph(
         return "report" if state.get("findings") is not None else "investigate"
 
     graph = StateGraph(InvestigationState)
-    graph.add_node("triage", triage)
-    graph.add_node("hypothesize", hypothesize)
-    graph.add_node("investigate", investigate)
+    graph.add_node("triage", triage, retry_policy=LLM_RETRY)
+    graph.add_node("hypothesize", hypothesize, retry_policy=LLM_RETRY)
+    graph.add_node("investigate", investigate, retry_policy=LLM_RETRY)
     graph.add_node("tools", tools)
     graph.add_node("verify", verify)
     graph.add_node("report", report)

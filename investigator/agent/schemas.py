@@ -68,8 +68,9 @@ class Findings(BaseModel):
 
     root_cause_category: RootCauseCategory
     root_cause_component: str = Field(
-        description="The failing component: a service (with version for a deploy), or a "
-        "dependency name such as 'postgres', 'redis', 'stripe', 'gemini'"
+        description="The failing component. For bad_deploy, the service and version "
+        "('checkout-api@2.14.0'). For any dependency problem (pool exhaustion, cache, timeout), "
+        "the dependency itself: 'postgres', 'redis', 'stripe', 'gemini'"
     )
     root_cause: str = Field(description="One or two sentences: what failed and why")
     root_cause_evidence_ids: list[str] = Field(

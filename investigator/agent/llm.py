@@ -57,8 +57,8 @@ def build_llm(settings: Settings, provider: str | None = None) -> tuple[BaseChat
             model=settings.gemini_model,
             google_api_key=settings.google_api_key,
             temperature=settings.llm_temperature,
-            max_retries=3,
-            timeout=120,
+            max_retries=2,  # transient 429/503s; a dead model should fail fast
+            timeout=90,
         )
         return llm, LLMInfo(
             "gemini",
