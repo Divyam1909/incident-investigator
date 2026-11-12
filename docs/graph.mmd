@@ -1,0 +1,28 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	triage(triage)
+	hypothesize(hypothesize)
+	investigate(investigate)
+	tools(tools)
+	verify(verify)
+	report(report)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> triage;
+	hypothesize --> investigate;
+	investigate -.-> tools;
+	investigate -.-> verify;
+	tools --> investigate;
+	triage --> hypothesize;
+	verify -.-> investigate;
+	verify -.-> report;
+	report --> __end__;
+	investigate -.-> investigate;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+
